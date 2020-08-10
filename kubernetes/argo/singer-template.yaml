@@ -1,0 +1,136 @@
+apiVersion: argoproj.io/v1alpha1
+kind: WorkflowTemplate
+metadata:
+  name: singer-workflow
+  namespace: argo
+spec:
+  entrypoint: tap-to-target
+
+  templates:
+  - name: tap-to-target
+    inputs:
+      parameters:
+      - name: tap_name
+      - name: tap_image
+      - name: tap_image_tag
+      - name: target_schema
+      - name: tap_image_repository
+        value: stkbailey
+      - name: target_name
+        value: target-postgres
+      - name: target_image
+        value: singer-target-postgres
+      - name: target_image_repository
+        value: stkbailey
+      - name: target_image_tag
+        value: latest
+      - name: artifact_bucket
+        value: artifacts
+    steps:
+    - - name: tap
+        template: singer-tap
+        arguments:
+          parameters:
+          - name: tap_name
+            value: "{{inputs.parameters.tap_name}}"
+          - name: tap_image
+            value: "{{inputs.parameters.tap_image}}"
+          - name: tap_image_tag
+            value: "{{inputs.parameters.tap_image_tag}}"
+          - name: tap_image_repository
+            value: "{{inputs.parameters.tap_image_repository}}"
+          - name: artifact_bucket
+            value: "{{inputs.parameters.artifact_bucket}}"
+    - - name: target
+        template: singer-target
+        arguments:
+          parameters:
+          - name: target_name
+            value: "{{inputs.parameters.target_name}}"
+          - name: target_schema
+            value: "{{inputs.parameters.target_schema}}"
+          - name: target_image
+            value: "{{inputs.parameters.target_image}}"
+          - name: target_image_tag
+            value: "{{inputs.parameters.target_image_tag}}"
+          - name: target_image_repository
+            value: "{{inputs.parameters.target_image_repository}}"
+          - name: artifact_bucket
+            value: "{{inputs.parameters.artifact_bucket}}"
+          artifacts:
+          - name: tap-output
+            from: "{{steps.tap.outputs.artifacts.tap-output}}"
+
+  - name: singer-tap
+    container:
+      image: "{{inputs.parameters.tap_image_repository}}/{{inputs.parameters.tap_image}}:{{inputs.parameters.tap_image_tag}}"
+    inputs:
+      parameters:
+      - name: tap_name
+      - name: tap_image
+      - name: tap_image_tag
+      - name: tap_image_repository
+      - name: artifact_bucket
+      artifacts:
+      - name: tap-config
+        path: /opt/code/config.json
+        s3:
+          bucket: "{{inputs.parameters.artifact_bucket}}"
+          key: "configs/{{inputs.parameters.tap_name}}/config.json"
+          endpoint: my-minio-endpoint.default:9000
+          accessKeySecret:
+            name: artifact-credentials
+            key: accessKey
+          secretKeySecret:
+            name: artifact-credentials
+            key: secretKey
+      - name: tap-catalog
+        path: /opt/code/catalog.json
+        s3:
+          bucket: "{{inputs.parameters.artifact_bucket}}"
+          key: "configs/{{inputs.parameters.tap_name}}/catalog.json"
+          endpoint: my-minio-endpoint.default:9000
+          accessKeySecret:
+            name: artifact-credentials
+            key: accessKey
+          secretKeySecret:
+            name: artifact-credentials
+            key: secretKey
+    outputs:
+      artifacts:
+      - name: tap-output
+        path: /tmp/tap_output.txt
+
+  - name: singer-target
+    container:
+      image: "{{inputs.parameters.target_image_repository}}/{{inputs.parameters.target_image}}:{{inputs.parameters.target_image_tag}}"
+      env:
+      - name: DEFAULT_TARGET_SCHEMA
+        value: "{{inputs.parameters.target_schema}}"
+    inputs:
+      parameters:
+        - name: target_name
+        - name: target_schema
+        - name: target_image
+        - name: target_image_tag
+        - name: target_image_repository
+        - name: artifact_bucket
+      artifacts:
+      - name: target-config
+        path: /opt/code/config.json
+        s3:
+          bucket: "{{inputs.parameters.artifact_bucket}}"
+          key: "configs/{{inputs.parameters.target_name}}/config.json"
+          endpoint: my-minio-endpoint.default:9000
+          accessKeySecret:
+            name: s3-artifact-credentials
+            key: accessKey
+          secretKeySecret:
+            name: s3-artifact-credentials
+            key: secretKey
+      - name: tap-output
+        path: /tmp/tap_output.txt
+    outputs:
+      artifacts:
+      - name: target-output
+        path: /tmp/target_output.txt
