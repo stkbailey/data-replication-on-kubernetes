@@ -1,5 +1,5 @@
 {
-    "api_token": "b6cc48d68cd5d61434e529acb7c7bc523dd5d40e",
+    "api_token": "GITHUB_API_TOKEN",
     "start_date": "2020-01-01T00:00:00Z",
     "user_agent": "tap-covid-19 <api_user_email@your_company.com>"
 }
