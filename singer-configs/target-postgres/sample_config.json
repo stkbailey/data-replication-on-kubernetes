@@ -1,8 +1,0 @@
-{
-  "host": "localhost",
-  "port": 5432,
-  "user": "my_user",
-  "password": "secret",
-  "dbname": "my_db_name",
-  "default_target_schema": "my_target_schema"
-}

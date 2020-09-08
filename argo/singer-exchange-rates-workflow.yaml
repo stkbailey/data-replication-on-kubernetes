@@ -1,0 +1,23 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Workflow
+metadata:
+  name: tap-exchange-rates
+  namespace: argo
+spec:
+  entrypoint: tap-runner
+
+  templates:
+  - name: tap-runner
+    steps:
+    - - name: tap-to-target
+        arguments:
+          parameters:
+          - name: tap_image
+            value: tap-exchange-rates
+          - name: tap_image_tag
+            value: latest
+          - name: target_image
+            value: target-csv
+        templateRef:
+          name: singer-workflow
+          template: tap-to-target
