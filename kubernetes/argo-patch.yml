@@ -1,0 +1,13 @@
+data:
+  artifactRepository: |
+    archiveLogs: true
+    s3:
+      bucket: artifacts
+      endpoint: argo-artifacts:9000
+      insecure: true
+      accessKeySecret:
+        name: argo-artifacts
+        key: accesskey
+      secretKeySecret:
+        name: argo-artifacts
+        key: secretkey

@@ -1,0 +1,84 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Workflow
+metadata:
+  generateName: singer-tap-exchange-rates-
+  namespace: argo
+spec:
+  entrypoint: tap-to-target
+
+  templates:
+  - name: tap-to-target
+    inputs:
+      parameters:
+      - name: tap_image
+        value: tap-exchange-rates
+      - name: target_image
+        value: target-csv
+    steps:
+    - - name: tap
+        template: singer-tap
+        arguments:
+          parameters:
+          - name: tap_image
+            value: "{{inputs.parameters.tap_image}}"
+    - - name: target
+        template: singer-target
+        arguments:
+          parameters:
+          - name: target_image
+            value: "{{inputs.parameters.target_image}}"
+          - name: tap_image
+            value: "{{inputs.parameters.tap_image}}"
+          artifacts:
+          - name: tap-output
+            from: "{{steps.tap.outputs.artifacts.tap-output}}"
+
+  - name: singer-tap
+    container:
+      image: "stkbailey/{{inputs.parameters.tap_image}}:latest"
+    inputs:
+      parameters:
+      - name: tap_image
+      artifacts:
+      - name: tap-config
+        path: /tmp/config.json
+        raw:
+          data: |
+            {"start_date": "2020-08-01"}
+    outputs:
+      artifacts:
+      - name: tap-output
+        path: /tmp/tap_output.txt
+
+  - name: singer-target
+    container:
+      image: "stkbailey/{{inputs.parameters.target_image}}:latest"
+    inputs:
+      parameters:
+      - name: target_image
+      - name: tap_image
+      artifacts:
+      - name: target-config
+        path: /tmp/config.json
+        raw:
+          data: |
+            {"delimiter": "\t", "quotechar": "'", "destination_path": "/tmp/data/"}
+      - name: tap-output
+        path: /tmp/tap_input.txt
+    outputs:
+      artifacts:
+      - name: target-output
+        path: /tmp/target_output.txt
+      - name: target-data
+        path: /tmp/data/data.zip
+        s3:
+          bucket: singer
+          key: "outputs/{{inputs.parameters.tap_image}}/results.zip"
+          endpoint: argo-artifacts:9000
+          insecure: true
+          accessKeySecret:
+            name: argo-artifacts
+            key: accesskey
+          secretKeySecret:
+            name: argo-artifacts
+            key: secretkey
