@@ -1,0 +1,15 @@
+apiVersion: argoproj.io/v1alpha1
+kind: WorkflowTemplate
+metadata:
+  name: singer-tap-to-csv-template
+  namespace: argo
+spec:
+  entrypoint: tap-to-target
+
+  templates:
+  - name: tap-to-target
+    inputs:
+      parameters:
+      - name: tap_image
+        value: tap-exchange-rates
+    from:

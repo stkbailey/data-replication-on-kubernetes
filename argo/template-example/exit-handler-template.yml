@@ -1,0 +1,74 @@
+apiVersion: argoproj.io/v1alpha1
+kind: WorkflowTemplate
+metadata:
+  name: slack-exit-handler-template
+  namespace: argo
+spec:
+  entrypoint: exit-handler
+
+  templates:
+  - name: exit-handler
+    inputs:
+      parameters:
+      - name: workflow_status
+        value: null
+      - name: workflow_name
+        value: null
+      - name: workflow_failures
+        value: null
+      - name: webhook_url
+        value: "https://slack.com/my-webhook-url"
+    steps:
+    - - name: woop-woop-message
+        template: slack-notify
+        arguments:
+          parameters:
+          - name: workflow_name
+            value: "{{inputs.parameters.workflow_name}}"
+          - name: workflow_status
+            value: "{{inputs.parameters.workflow_status}}"
+          - name: workflow_failures
+            value: "{{inputs.parameters.workflow_failures}}"
+          - name: slack_color
+            value: "#008000"
+        when: "{{inputs.parameters.workflow_status}} == Succeeded"
+      - name: arrgghho-message
+        template: slack-notify
+        arguments:
+          parameters:
+          - name: workflow_name
+            value: "{{inputs.parameters.workflow_name}}"
+          - name: workflow_status
+            value: "{{inputs.parameters.workflow_status}}"
+          - name: workflow_failures
+            value: "{{inputs.parameters.workflow_failures}}"
+          - name: slack_color
+            value: "#FF0000"
+        when: "{{inputs.parameters.workflow_status}} != Succeeded"
+
+  - name: slack-notify
+    inputs:
+      parameters:
+      - name: slack_color
+      - name: slack_channel
+        value: "notify-channel"
+      - name: webhook_url
+      - name: workflow_name
+      - name: workflow_status
+      - name: workflow_failures
+    container:
+      image: technosophos/slack-notify
+      env:
+      - name: SLACK_WEBHOOK
+        value: {{inputs.parameters.webhook_url}}
+      - name: SLACK_TITLE
+        value: "Workflow Complete: {{inputs.parameters.workflow_name}}"
+      - name: SLACK_MESSAGE
+        value: |
+          Name: {{inputs.parameters.workflow_name}}
+          Status: {{inputs.parameters.workflow_status}}
+          Failures: {{inputs.parameters.workflow_failures}}
+      - name: SLACK_CHANNEL
+        value: {{inputs.parameters.slack_channel}}
+      - name: SLACK_COLOR
+        value: "{{inputs.parameters.slack_color}}"

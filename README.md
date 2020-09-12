@@ -104,13 +104,21 @@ helm repo update
 
 # Deploy MinIO in the "argo" namespace
 helm install argo-artifacts minio/minio     \
-    -n argo                                 \
-    --set service.type=LoadBalancer         \
-    --set fullnameOverride=argo-artifacts   \
-    --set persistence.size=20M
+  -n argo                                   \
+  --set service.type=LoadBalancer           \
+  --set defaultBucket.enabled=true          \
+  --set defaultBucket.name=my-bucket        \
+  --set persistence.enabled=false           \
+  --set fullnameOverride=argo-artifacts
 ```
 
 You now have an artifacts server running, but it's empty! Let's create an artifacts bucket, along with a bucket for singer configuration and outputs. To use the commands below, you'll need the MinIO CLI tool: `brew install minio/stable/mc`.
+
+`https://sourcegraph.com/github.com/argoproj/argo@095d67f8d0f1d309529c8a400cb16d0a0e2765b9/-/blob/demo.md#5-install-an-artifact-repository`
+
+```
+kubectl patch configmap workflow-controller-configmap -n argo --patch "$(cat kubernetes/argo-patch.yml)"
+```
 
 ```{zsh}
 # Add config host
