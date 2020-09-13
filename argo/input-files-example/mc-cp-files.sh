@@ -6,7 +6,7 @@ mc mb argo-artifacts-local/singer
 
 # Copy the whole "tap-exhange-rates" config directory to the bucket
 mc cp --recursive                               \
-    argo/input-files-example/tap-exchange-rates \
+    argo/input-files-example/tap-covid-19 \
     argo-artifacts-local/singer/config/
 
 mc cp --recursive                           \

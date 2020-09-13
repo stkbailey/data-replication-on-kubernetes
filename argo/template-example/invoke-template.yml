@@ -1,15 +1,40 @@
 apiVersion: argoproj.io/v1alpha1
-kind: WorkflowTemplate
+kind: Workflow
 metadata:
-  name: singer-tap-to-csv-template
+  generateName: invoked-template-example-
   namespace: argo
 spec:
-  entrypoint: tap-to-target
+  entrypoint: workflow-runner
 
   templates:
-  - name: tap-to-target
-    inputs:
-      parameters:
-      - name: tap_image
-        value: tap-exchange-rates
-    from:
+  - name: workflow-runner
+    dag:
+      tasks:
+      - name: workflow-1
+        arguments:
+          parameters:
+          - name: tap_image
+            value: tap-exchange-rates
+        templateRef:
+          name: singer-tap-to-csv-template
+          template: tap-to-target
+
+      - name: workflow-2
+        arguments:
+          parameters:
+          - name: tap_image
+            value: tap-exchange-rates
+        templateRef:
+          name: singer-tap-to-csv-template
+          template: tap-to-target
+
+      - name: workflow-3
+        arguments:
+          parameters:
+          - name: tap_image
+            value: tap-exchange-rates
+        templateRef:
+          name: singer-tap-to-csv-template
+          template: tap-to-target
+
+          
