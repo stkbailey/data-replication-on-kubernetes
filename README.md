@@ -1,7 +1,5 @@
 # data-replication-on-kubernetes
 
-Reliable data replication is a critical piece of the 
-
 ELT is the hot new data pipelining pattern, and thousands of data teams are using some combination of Stitch / FiveTran, dbt and a cloud data warehouse to manage their data warehouse. There are great SaaS offerings for these tools, but a lot of folks like pain or don't have budget. As a small data team at Immuta, we were both.
 
 This article assumes some familiarity with [Docker](https://docker.com), [Kubernetes](https://kubernetes.io/) and the [Singer](https://singer.io) specification. Even if you're new to these technologies, though, I will try to point out helpful resources to get you pointed in the right direction.
@@ -14,7 +12,6 @@ Let's start the discussion with two assertions:
 
 1. Data replication is a "solved" problem.
 2. Kubernetes is a scalable data (process) management platform.
-
 
 ETL is not the reason that anyone gets into data science or engineering. There is little creativity, lots of maintenance, and no recognition until something goes wrong. Fortunately, SaaS tools like [Stitch](www.stitchdata.com) and [FiveTran](www.fivetran.com) have pretty much turned data replication into a commodity that small teams can leverage. And where there are no existing supported connectors (for internal applications, say), a data scientist could write their own [Singer](https://singer.io) script and load data themselves.
 
@@ -47,11 +44,8 @@ Now that we have a motivation for using Singer and Argo together, let's get to w
 
 ## Tutorial
 
-The tutorial has three steps.
-
-1. Set up a local Kubernetes cluster with Argo and Minio storage for artifacts and config files.
-2. Review containerized Singer taps and targets.
-3. Create and deploy an Argo Workflow combining tap and target.
+In this tutorial, we are going to first set up a local Kubernetes cluster with Argo and Minio storage for artifacts and config files,
+then we will deploy a Singer tap-to-target workflow, and then we'll discuss enhancements and extensions.
 
 We could go deep on any one of these areas, but I'll try to keep it shallow and manageable for the tutorial, leaving further discussion for "production" considerations to the end. The tutorial has the following pre-requisites:
 
@@ -66,9 +60,7 @@ In this first section, we need to set up a Kubernetes cluster, Argo Workflows, a
 
 #### Install Docker Desktop and enable Kubernetes
 
-Coming out of this section, you need to have a Kubernetes cluster which you have admin access to and can deploy resources to using `kubectl`. If you already have that, then you can skip this section.
-
-If you don't have that, you will need to set it up, and the easiest way to do it is using Docker for Desktop. You'll want to follow the documentation on Docker's website.
+Youu will need to have a Kubernetes cluster which you have admin access to and can deploy resources to using `kubectl`. If you already have that, then you can skip this section. If you don't, the easiest way to do it is using Docker for Desktop. You'll want to follow the documentation on Docker's website.
 
 1. Install Docker for Desktop. [Mac](https://docs.docker.com/docker-for-mac/install/).
 2. Enable Kubernetes. [Mac](https://docs.docker.com/docker-for-mac/kubernetes/)
@@ -96,9 +88,9 @@ kubectl -n argo port-forward deployment/argo-server 2746:2746
 
 #### Set up Minio Storage
 
-Argo Workflows can pass files from into or out of a container through the use of "artifacts". For local deployments, an easy way to configure artifact passing is through a Kubernetes deployment of [MinIO](https://min.io/). Argo has [plenty of guidance](https://argoproj.github.io/argo/configure-artifact-repository/) on setting this up with other services, but you can follow along below for a quick MinIO deployment.
+Argo Workflows can pass files into or out of a container through the use of "artifacts". For local deployments, an easy way to configure artifact passing is through a Kubernetes deployment of [MinIO](https://min.io/). Argo has [plenty of guidance](https://argoproj.github.io/argo/configure-artifact-repository/) on setting this up with other services, but you can follow along below for a quick MinIO deployment.
 
-Note that you'll need to have `helm` installed (essentially, a Kubernetes package manager). On Mac, you can use Homebrew: `brew install helm`.
+Note that you'll need to have `helm` installed (essentially, a Kubernetes package manager). On Mac, you can use Homebrew: `brew install helm`. Then, run the following:
 
 ```{zsh}
 # Add the MinIO helm chart
@@ -110,7 +102,7 @@ helm install argo-artifacts minio/minio     \
   -n argo                                   \
   --set service.type=LoadBalancer           \
   --set defaultBucket.enabled=true          \
-  --set defaultBucket.name=my-bucket        \
+  --set defaultBucket.name=artifacts        \
   --set persistence.enabled=false           \
   --set fullnameOverride=argo-artifacts
 ```
@@ -134,10 +126,10 @@ mc ls argo-artifacts-local
 
 #### Map Argo and MinIO together
 
+ on setting up your artifact repository. But let's just start with the below for now:
 
-There are additional instructions [elsewhere](https://sourcegraph.com/github.com/argoproj/argo@095d67f8d0f1d309529c8a400cb16d0a0e2765b9/-/blob/demo.md#5-install-an-artifact-repository) on setting up your artifact repository. But let's just start with the below for now:
-
-Finally, we need to tell Argo where the default artifact repository is, so that it knows which bucket to map artifacts to and has the appropriate secrets for authentication. To do this, I've created a `ConfigMap` and `Secret` Kubernetes resources. You can simply use `kubectl apply` to deploy them to your cluster.
+Finally, we need to tell Argo where the default artifact repository is, so that it knows which bucket to map artifacts to and has the appropriate secrets for authentication. You could follow the instructions [elsewhere](https://sourcegraph.com/github.com/argoproj/argo@095d67f8d0f1d309529c8a400cb16d0a0e2765b9/-/blob/demo.md#5-install-an-artifact-repository), but for simplicity's sake, I suggest
+applying this "patch" to your resource.
 
 ```{zsh}
 wget -o patch.yml https://raw.githubusercontent.com/stkbailey/data-replication-on-kubernetes/master/argo/argo-artifact-patch.yml
@@ -150,7 +142,7 @@ To make sure you've got everything working in this first section, try running th
 argo submit -n argo https://raw.githubusercontent.com/argoproj/argo/master/examples/artifact-passing.yaml --watch
 ```
 
-You should see a two-step Workflow create and finish. Congratulations -- it's all downhill from here.
+
 
 ### The Argo workflow
 
@@ -160,13 +152,56 @@ You've got Kubernetes, you've got Argo: let's not wait around! Run the following
 argo submit -n argo --watch https://raw.githubusercontent.com/stkbailey/data-replication-on-kubernetes/master/argo/tap-exchange-rate-workflow.yml
 ```
 
-You should see a workflow kick off in your terminal. (Alternatively, you could go to that link, copy the text and paste it into the Argo Workflows "new workflow" UI.) Let's walk through what this tap does:
+You should see a workflow kick off in your terminal. (Alternatively, you could go to that link, copy the text and paste it into the Argo Workflows "new workflow" UI.) 
+
+You should see a two-step Workflow create and finish. Let's check the "outputs" storage bucket and see what's available.
+
+```
+mc ls argo-artifacts-local/singer/outputs/target-csv/
+```
+
+#### Dissecting the workflow
+
+Let's walk through what this tap does:
 
 1. It starts a `tap-to-target` multi-step workflow, consisting of two child steps: the `tap` and the `target` step.
 2. It kicks off the `tap` child step and passes in some configuration files, which get mapped to `/tmp/config.json`. When the tap step completes, the output file at `/tmp/tap_output.txt` is stored in the default MinIO artifact repository.
 3. It then kicks off the `target` child step and maps both configuration and tap output into the containers file system. When the target runs, the output (from the CSV target) is mapped to the `outputs` MinIO bucket.
 
 Argo makes all of this extremely "template-able", as we'll see in a few moments. But it is all dependent on the containers knowing where to expect certain files, etc. Which leads us to ask: What's going on in the containers?
+
+#### The Preamble
+
+We begin the Workflow by adding some metadata andd specifying that we want to create a "Workflow" resource. This is a single run of the workflow.
+
+```
+apiVersion: argoproj.io/v1alpha1
+kind: Workflow
+metadata:
+  name: singer-workflow
+  namespace: argo
+spec:
+  entrypoint: <<template-name>>
+  templates: [ ... ]
+```
+
+Next, we specify our DAG templates. We will be building three of these: a `tap-to-target` DAG, a `tap`, and a `target`. We _could_ do this all in a single step, but we'll talk about reusability in a moment.
+
+Let's begin with the DAG template, which takes a couple input parameters -- names, images and the artifact bucket
+
+- name:
+- input parameters
+- steps:
+
+The DAG Workflow references a couple other "templates" that also need to be defined. 
+
+- name:
+- container
+- input parameters:
+- input artifacts:
+- output artifacts:
+
+You can re-run the workflow, changing the configuration as desired. And that's the beauty of this workflow: once set up, it's simply a matter of changing some container locations and config files to add a new tap. 
 
 #### Dockerizing Singer
 
@@ -182,7 +217,6 @@ We can treat the containers themselves as black boxes, so long as we know how to
 ```{zsh}
 docker run -e START_DATE=2020-08-01 stkbailey/tap-exchange-rates
 ```
-
 This should kick off the `tap-exchangeratesapi`, which doesn't require any special configuration to run.
 
 Without going into too much detail, we are wrapping the singer "tap / target" commands in a Runner object that defines where to look for the necessary files. (It's available at [singer-container-utils](https://github.com/immuta/singer-container-utils).) THere are many ways to skin that cat at this point, but the important thing is to make it easy to reproduce across multiple taps.
@@ -195,48 +229,6 @@ We won't dig into the details, but each of these Docker containers is running a 
 
 It's a lot of overhead for a single command, but when you have multiple containers to run, the abstractions make life easier.
 
-#### The Preamble
-
-We begin the Workflow by adding some metadata andd specifying that we want to create a "Workflow" resource. This is a single run of the workflow.
-
-```
-apiVersion: argoproj.io/v1alpha1
-kind: Workflow
-metadata:
-  name: singer-workflow
-  namespace: argo
-spec:
-```
-
-Next, we specify our DAG templates. We will be building three of these: a `tap-to-target` DAG, a `tap`, and a `target`. We _could_ do this all in a single step, but we'll talk about reusability in a moment.
-
-Let's begin with the DAG template, which takes a couple input parameters -- names, images and the artifact bucket
-
-- name;
-- input parameters
-- steps:
-
-The DAG Workflow references a couple other "templates" that also need to be defined. 
-
-- name:
-- container
-- input parameters:
-- input artifacts:
-- output artifacts:
-
-Now that we've defined the workflow, tap and target templates, we are ready to go! If you've followed all the steps so far, you should be in good shape to run the following Argo command:
-
-```
-argo submit -n argo <filename> --watch
-```
-
-You should see the DAG materialize and then complete. The `target-csv` step will create a new output file in your MinIO bucket with the exchange rates for the past few days. If you explore the bucket, you'll find the tap-output, the state files, and the output file have all been generated and stored in your artifact repository.
-
-```
-mc ls argo-artifacts-local/singer/outputs/target-csv/
-```
-
-You can re-run the workflow, changing the configuration as desired. And that's the beauty of this workflow: once set up, it's simply a matter of changing some container locations and config files to add a new tap. 
 
 ## Discussion
 
@@ -250,15 +242,9 @@ But, exciting as all this is, it has to be noted that this is not for the faint 
 
 You may find that `pipelinewise` or `meltano` can do the same work for you, with less overhead. Alternatively, you may find that running them on Argo gives you a nice method for doing custom replications.
 
-### You need to think about logging and observability
+### Logging and observability are _different_ in containers
 
 We use a Slack exit-handler to notify our team of successes and failures. 
-
-### The Singer ecosystem is loosely regulated
-
-What seems like a Nirvana at first -- an open source ecosystem of pre-built integrations -- can quickly become a bit of a nightmare. Our team has found fundamental deficiencies in a few taps -- such as not pulling all the relevant data.
-
-But, teams at Pipelinewise and Meltano are doing soem great work building up the ecosystem and making them reliable.
 
 ### Schedules and templates
 
@@ -280,14 +266,11 @@ At Immuta, we went with this architecture becuase:
 
 Thanks for reading!
 
-
 ## References
 
 - Getting Started with Singer [Blog](https://github.com/singer-io/getting-started)
 - Building a Singer Tap - Infographic [Blog](https://www.stitchdata.com/blog/how-to-build-a-singer-tap-infographic/)
-
-
-
+- Singer Container Utils [GitHub](https://github.com/immuta/singer-container-utils)
 
 ## Draft
 
