@@ -64,7 +64,10 @@ Youu will need to have a Kubernetes cluster which you have admin access to and c
 
 1. Install Docker for Desktop. [Mac](https://docs.docker.com/docker-for-mac/install/).
 2. Enable Kubernetes. [Mac](https://docs.docker.com/docker-for-mac/kubernetes/)
-3. Test out the `kubectl` command. [Mac](https://docs.docker.com/docker-for-mac/kubernetes/#use-the-kubectl-command)
+3. Bump up Docker's resource allocation to at least 12 GB to ensure enough room for Minio storage
+   - ![](assets/kubernetes-resources.png)
+4. Test out the `kubectl` command. [Mac](https://docs.docker.com/docker-for-mac/kubernetes/#use-the-kubectl-command)
+5. Install the latest Argo CLI. [Mac](https://github.com/argoproj/argo/releases)
 
 Once you have that working, feel free to play around with your Kubernetes cluster.
 
@@ -97,7 +100,7 @@ Note that you'll need to have `helm` installed (essentially, a Kubernetes packag
 helm repo add minio https://helm.min.io/
 helm repo update
 
-# Deploy MinIO in the "argo" namespace
+# Deploy MinIO in the "argo" namespace (this may take a minute)
 helm install argo-artifacts minio/minio     \
   -n argo                                   \
   --set service.type=LoadBalancer           \
@@ -118,7 +121,7 @@ mc mb argo-artifacts-local/artifacts
 mc mb argo-artifacts-local/singer
 ```
 
-You can go and check these in your browser using `kubectl port-forward service/argo-artifacts 9000:9000`.
+You can go and check these in your browser using `kubectl -n argo port-forward service/argo-artifacts 9000:9000`.
 
 ```
 mc ls argo-artifacts-local
@@ -133,7 +136,7 @@ applying this "patch" to your resource.
 
 ```{zsh}
 wget -o patch.yml https://raw.githubusercontent.com/stkbailey/data-replication-on-kubernetes/master/argo/argo-artifact-patch.yml
-kubectl patch configmap workflow-controller-configmap -n argo --patch "$(cat argo-patch.yml)"
+kubectl patch configmap workflow-controller-configmap -n argo --patch "$(cat argo-artifact-patch.yml)"
 ```
 
 To make sure you've got everything working in this first section, try running the "artifact-passing" example from the Argo examples repository.
@@ -152,12 +155,12 @@ You've got Kubernetes, you've got Argo: let's not wait around! Run the following
 argo submit -n argo --watch https://raw.githubusercontent.com/stkbailey/data-replication-on-kubernetes/master/argo/tap-exchange-rate-workflow.yml
 ```
 
-You should see a workflow kick off in your terminal. (Alternatively, you could go to that link, copy the text and paste it into the Argo Workflows "new workflow" UI.) 
+You should see a workflow kick off in your terminal. (Alternatively, you could go to that link, copy the text and paste it into the Argo Workflows "new workflow" UI.) If you receive an error message that says something along the lines of `failed to save outputs: timed out waiting for the condition`, simply try running the workflow again.
 
 You should see a two-step Workflow create and finish. Let's check the "outputs" storage bucket and see what's available.
 
 ```
-mc ls argo-artifacts-local/singer/outputs/target-csv/
+mc ls argo-artifacts-local/singer/outputs/tap-exchange-rates/
 ```
 
 #### Dissecting the workflow
