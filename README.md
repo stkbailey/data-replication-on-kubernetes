@@ -73,7 +73,7 @@ Once you have that working, feel free to play around with your Kubernetes cluste
 
 #### Install Argo Workflows
 
-Next, we need to install Argo. You can follow the [Quick Start Guide](https://argoproj.github.io/argo/quick-start/) to get some context, or simply use the commands below to create an `argo` namespace in your cluster and deploy the resources.
+Next, we need to install Argo. You can follow the [Quick Start Guide](https://argoproj.github.io/argo-workflows/quick-start/) to get some context, or simply use the commands below to create an `argo` namespace in your cluster and deploy the resources.
 
 ```{zsh}
 # Create the argo namespace then deploy the "quick start" resources
